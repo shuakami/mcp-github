@@ -1057,9 +1057,11 @@ class GitHubMCP {
         owner: z.string(),
         repo: z.string(),
         path: z.string(),
-        ref: z.string().optional()  // 分支或提交 SHA，可选
+        ref: z.string().optional(),  // 分支或提交 SHA，可选
+        startLine: z.number().optional(), // 开始行号（从1开始）
+        endLine: z.number().optional()    // 结束行号
       },
-      async ({ owner, repo, path, ref }) => {
+      async ({ owner, repo, path, ref, startLine, endLine }) => {
         try {
           const result = await this.octokit.rest.repos.getContent({
             owner,
@@ -1086,18 +1088,58 @@ class GitHubMCP {
 
           const encodedContent = fileData.content;
           const decodedContent = Buffer.from(encodedContent, 'base64').toString('utf-8');
+          
+          // 分割为行
+          const lines = decodedContent.split('\n');
+          const totalLines = lines.length;
+          
+          // 处理指定行范围
+          if (startLine !== undefined) {
+            // 确保行号在有效范围内
+            const validStartLine = Math.max(1, Math.min(startLine, totalLines));
+            const validEndLine = endLine 
+              ? Math.min(endLine, totalLines) 
+              : Math.min(validStartLine + 199, totalLines); // 默认显示最多200行
+            
+            // 提取指定的行范围
+            const selectedLines = lines.slice(validStartLine - 1, validEndLine);
+            
+            // 构建显示内容
+            let content = selectedLines.join('\n');
+            
+            // 添加行范围信息
+            let rangeInfo = `文件: ${path}\n` +
+                           `显示第 ${validStartLine} 至 ${validEndLine} 行 (共 ${totalLines} 行)\n\n`;
+            
+            // 添加继续阅读的提示（如果有更多行）
+            if (validEndLine < totalLines) {
+              rangeInfo += `\n\n提示: 使用 startLine: ${validEndLine + 1} 继续阅读后续内容`;
+            }
+            
+            // 添加前面内容的提示（如果不是从第一行开始）
+            if (validStartLine > 1) {
+              rangeInfo += `\n提示: 使用 startLine: 1, endLine: ${validStartLine - 1} 查看之前的内容`;
+            }
+            
+            return { 
+              content: [{
+                type: "text",
+                text: `${rangeInfo}${content}`
+              }]
+            };
+          } else {
+            // 未指定行号，使用默认行为（截断长内容）
+            const truncated = decodedContent.length > 2000 
+              ? decodedContent.substring(0, 2000) + "\n...（内容过长，已截断）\n\n提示: 使用 startLine 和 endLine 参数查看特定行范围" 
+              : decodedContent;
 
-          // 简单截断过长内容
-          const truncated = decodedContent.length > 2000 
-            ? decodedContent.substring(0, 2000) + "\n...（内容过长，已截断）" 
-            : decodedContent;
-
-          return { 
-            content: [{
-              type: "text",
-              text: `文件内容 (base64解码后, 可能截断):\n\n${truncated}`
-            }]
-          };
+            return { 
+              content: [{
+                type: "text",
+                text: `文件内容 (base64解码后${decodedContent.length > 2000 ? ', 已截断' : ''}):\n\n${truncated}`
+              }]
+            };
+          }
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
