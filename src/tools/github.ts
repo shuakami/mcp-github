@@ -164,7 +164,8 @@ class GitHubMCP {
         allowSquashMerge: z.boolean().optional(),
         allowMergeCommit: z.boolean().optional(),
         allowRebaseMerge: z.boolean().optional(),
-        archived: z.boolean().optional()
+        archived: z.boolean().optional(),
+        topics: z.array(z.string()).optional()
       },
       async ({ owner, repo, ...data }) => {
         try {
@@ -177,6 +178,7 @@ class GitHubMCP {
           if (data.allowSquashMerge !== undefined) params.allow_squash_merge = data.allowSquashMerge;
           if (data.allowMergeCommit !== undefined) params.allow_merge_commit = data.allowMergeCommit;
           if (data.allowRebaseMerge !== undefined) params.allow_rebase_merge = data.allowRebaseMerge;
+          if (data.topics !== undefined) params.topics = data.topics;
 
           ['name', 'description', 'homepage', 'private', 'archived'].forEach(key => {
             if (data[key as keyof typeof data] !== undefined) {
