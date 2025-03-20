@@ -4,6 +4,8 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18.x-48bb78?style=flat-square)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square)](https://www.typescriptlang.org/)
 
+[中文版本 (README.md)](README.md)
+
 ## What is this?
 
 This is a GitHub toolkit based on MCP (Model Context Protocol) that allows AI models to access GitHub API through standardized interfaces. Simply put, it enables AI assistants to perform various GitHub operations, such as creating repositories, committing code, managing branches, etc., without requiring users to manually input complex API calls.

@@ -4,6 +4,8 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18.x-48bb78?style=flat-square)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square)](https://www.typescriptlang.org/)
 
+[English Version (README-EN.md)](README-EN.md)
+
 ## 这是什么
 
 这是一个基于 MCP (Model Context Protocol) 的 GitHub 工具，它能让 AI 模型通过标准化接口访问 GitHub API。
