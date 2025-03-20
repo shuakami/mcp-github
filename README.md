@@ -23,6 +23,28 @@
 - **代码管理**：文件内容、提交记录
 </details>
 
+## 功能演示
+
+以下是 GitHub MCP 工具的一些核心功能演示：
+
+<div align="center">
+
+### 仓库创建演示
+<img src="demo/image/new-repository.png" alt="仓库创建演示" width="95%" />
+
+### 分支操作演示
+<img src="demo/image/new-branch.png" alt="分支操作演示" width="95%" />
+
+### Pull Request 管理演示
+<img src="demo/image/pr.png" alt="Pull Request 管理演示" width="95%" />
+
+### Issue 跟踪演示
+<img src="demo/image/issue.png" alt="Issue 跟踪演示" width="95%" />
+
+</div>
+
+通过简单的自然语言指令，AI 可以帮助你完成上述所有操作，无需手动编写 API 调用或在浏览器中操作 GitHub 界面。
+
 ## 快速上手
 
 ### 0. 环境准备
