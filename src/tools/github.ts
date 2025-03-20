@@ -976,6 +976,80 @@ class GitHubMCP {
    * ===================================
    */
   private registerCodeManagementTools(): void {
+    // 列出仓库目录内容
+    this.server.tool(
+      "listRepositoryContents",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        path: z.string().optional(),
+        ref: z.string().optional()  // 分支或提交 SHA，可选
+      },
+      async ({ owner, repo, path = "", ref }) => {
+        try {
+          const result = await this.octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path,
+            ref
+          });
+
+          // 判断结果类型
+          if (Array.isArray(result.data)) {
+            // 如果是目录，会返回一个数组
+            const items = result.data.map((item: any) => {
+              const isDir = item.type === 'dir';
+              const icon = isDir ? '📁' : item.type === 'file' ? '📄' : item.type === 'symlink' ? '🔗' : '❓';
+              const size = item.size ? `(${this.formatFileSize(item.size)})` : '';
+              return `${icon} ${item.name} ${size} ${isDir ? '/' : ''}`;
+            }).join('\n');
+            
+            // 构建导航路径信息
+            const pathParts = path.split('/').filter(p => p);
+            let pathNav = '📂 根目录';
+            if (pathParts.length > 0) {
+              pathNav = `📂 根目录/${pathParts.join('/')}`;
+            }
+            
+            // 提供导航提示
+            const parentPath = pathParts.length > 0 
+              ? pathParts.slice(0, -1).join('/') 
+              : '';
+            const navigationTip = path 
+              ? `\n\n提示：使用 path: "${parentPath}" 返回上级目录` 
+              : '';
+
+            return {
+              content: [{
+                type: "text",
+                text: `仓库: ${owner}/${repo}${ref ? ` (分支: ${ref})` : ''}\n路径: ${pathNav}\n\n${items}${navigationTip}`
+              }]
+            };
+          } else {
+            // 单个文件，显示文件信息
+            const fileData = result.data;
+            return {
+              content: [{
+                type: "text",
+                text: `文件: ${fileData.name}\n大小: ${this.formatFileSize(fileData.size)}\n类型: ${fileData.type}\n路径: ${fileData.path}\n\n如需查看文件内容，请使用 getFileContent 工具。`
+              }]
+            };
+          }
+        } catch (error: any) {
+          // 友好的错误处理
+          if (error.status === 404) {
+            return { 
+              content: [{ 
+                type: "text", 
+                text: `路径不存在: ${path || '/'}\n请检查路径是否正确，或尝试返回上级目录。` 
+              }] 
+            };
+          }
+          return { content: [{ type: "text", text: `错误: ${error.message}` }] };
+        }
+      }
+    );
+
     // 获取文件内容
     this.server.tool(
       "getFileContent",
@@ -1416,6 +1490,21 @@ class GitHubMCP {
       // 发生错误时，尝试基础的格式化
       return `数据:\n${JSON.stringify(data, null, 2)}`;
     }
+  }
+
+  /**
+   * 格式化文件大小显示
+   * @param bytes 文件大小（字节）
+   * @returns 格式化后的大小字符串（如 1.5KB, 3.2MB）
+   */
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
   public async run(): Promise<void> {
