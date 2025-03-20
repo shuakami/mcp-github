@@ -188,13 +188,38 @@ class GitHubMCP {
           // 如果提供了topics，使用单独的API调用来更新topics
           let topicsResult;
           if (data.topics !== undefined) {
-            topicsResult = await this.octokit.rest.repos.replaceAllTopics({
-              owner,
-              repo,
-              names: data.topics
-            });
+            try {
+              topicsResult = await this.octokit.rest.repos.replaceAllTopics({
+                owner,
+                repo,
+                names: data.topics
+              });
+            } catch (topicsError: any) {
+              console.error(`更新主题标签出错: ${topicsError.message}`);
+              // 继续执行其他更新，不因topics更新失败而中断整个操作
+            }
           }
 
+          // 如果没有其他参数需要更新，直接返回带topics的仓库信息
+          if (Object.keys(params).length <= 2 && topicsResult) { // 只有owner和repo
+            // 获取最新的仓库信息
+            const getResult = await this.octokit.rest.repos.get({
+              owner,
+              repo
+            });
+            
+            let cleanedData = this.cleanGitHubResponse(getResult.data, 'repository');
+            
+            // 添加topics信息
+            if (topicsResult && topicsResult.data.names) {
+              cleanedData.topics = topicsResult.data.names;
+            }
+            
+            const text = this.formatForHumans(cleanedData, 'repository');
+            return { content: [{ type: "text", text }] };
+          }
+
+          // 有其他属性需要更新
           const result = await this.octokit.rest.repos.update(params);
           
           // 清洗 & 格式化
@@ -1294,6 +1319,7 @@ class GitHubMCP {
               if (repo.language) result += `   主要语言: ${repo.language}\n`;
               if (repo.stars) result += `   星标数: ${repo.stars}\n`;
               if (repo.belongsTo) result += `   仓库所有者: ${repo.belongsTo}\n`;
+              if (repo.topics && repo.topics.length > 0) result += `   主题标签: ${repo.topics.join(', ')}\n`;
               result += `   更新于: ${new Date(repo.updated_at).toLocaleString()}\n\n`;
             });
             return result;
@@ -1303,6 +1329,7 @@ class GitHubMCP {
             result += `链接: ${data.html_url}\n`;
             if (data.language) result += `主要语言: ${data.language}\n`;
             if (data.stars) result += `星标数: ${data.stars}\n`;
+            if (data.topics && data.topics.length > 0) result += `主题标签: ${data.topics.join(', ')}\n`;
             result += `更新于: ${new Date(data.updated_at).toLocaleString()}\n`;
             return result;
           }
