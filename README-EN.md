@@ -21,7 +21,8 @@ This is a GitHub toolkit based on MCP (Model Context Protocol) that allows AI mo
 - **Code management**: file content, commit history
 </details>
 
-## Feature Demonstration
+<details>
+<summary><b>Feature Demonstration</b> (click to expand)</summary>
 
 Here are some core feature demonstrations of the GitHub MCP tool:
 
@@ -42,6 +43,7 @@ Here are some core feature demonstrations of the GitHub MCP tool:
 </div>
 
 With simple natural language instructions, AI can help you complete all of the above operations without manually writing API calls or operating the GitHub interface in a browser.
+</details>
 
 ## Quick Start
 
