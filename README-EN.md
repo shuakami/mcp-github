@@ -50,23 +50,20 @@ With simple natural language instructions, AI can help you complete all of the a
 ### 0. Environment Setup
 
 <details>
-<summary>If you've never used Node.js before (click to expand)</summary>
+<summary>Environment Requirements (click to expand)</summary>
 
-1. Install Node.js and npm
+1. **Python 3.11+ (Required)**
+   - Visit [Python website](https://www.python.org/downloads/)
+   - Download and install Python 3.11 or higher
+   - **Important**: Check "Add Python to PATH" during installation
+   - **Restart your computer after installation** to ensure environment variables take effect
+
+2. **Node.js and npm**
    - Visit [Node.js website](https://nodejs.org/)
    - Download and install the LTS (Long Term Support) version
    - Select the default options during installation, which will install both Node.js and npm
 
-2. Verify installation
-   - After installation, open Command Prompt (CMD) or PowerShell
-   - Type the following commands to confirm successful installation:
-     ```bash
-     node --version
-     npm --version
-     ```
-   - If version numbers are displayed, the installation was successful
-
-3. Install Git (if not already installed)
+3. **Git**
    - Visit [Git website](https://git-scm.com/)
    - Download and install Git
    - Use default options during installation
@@ -79,6 +76,7 @@ git clone https://github.com/shuakami/mcp-github.git
 cd mcp-github
 npm install
 ```
+> ⚠️ **Important Note**: Do not delete the cloned or extracted files after installation, as the plugin needs continuous access to these files!
 
 ### 2. Build the Project
 
@@ -115,13 +113,9 @@ Based on your operating system, follow these steps to configure MCP:
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "powershell",
+      "command": "pythonw",
       "args": [
-        "-WindowStyle",
-        "Hidden",
-        "-Command",
-        "node",
-        "C:/Users/your_username/mcp-github/dist/index.js"
+        "your_installation_path/mcp-github/bridging_github_mcp.py"
       ],
       "env": {
         "GITHUB_TOKEN": "your_github_token"
@@ -132,9 +126,9 @@ Based on your operating system, follow these steps to configure MCP:
 ```
 
 > ⚠️ **Important Note**:
-> - Replace `your_username` with your Windows username (e.g., `C:/Users/John/mcp-github/...`)
+> - Replace `your_installation_path` with the actual path where you cloned or extracted the project (e.g., `C:/Users/John/mcp-github/...`)
+> - Use forward slashes (/) instead of backslashes (\) for paths
 > - Replace `your_github_token` with the token you obtained in the previous step
-> - Make sure the path correctly points to your project directory
 </details>
 
 <details>
@@ -149,10 +143,9 @@ Based on your operating system, follow these steps to configure MCP:
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "bash",
+      "command": "python3",
       "args": [
-        "-c",
-        "node /Users/your_username/mcp-github/dist/index.js"
+        "/Users/your_username/mcp-github/bridging_github_mcp.py"
       ],
       "env": {
         "GITHUB_TOKEN": "your_github_token"
@@ -180,10 +173,9 @@ Based on your operating system, follow these steps to configure MCP:
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "bash",
+      "command": "python3",
       "args": [
-        "-c",
-        "node /home/your_username/mcp-github/dist/index.js"
+        "/home/your_username/mcp-github/bridging_github_mcp.py"
       ],
       "env": {
         "GITHUB_TOKEN": "your_github_token"

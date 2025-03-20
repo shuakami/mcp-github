@@ -52,23 +52,20 @@
 ### 0. 环境准备
 
 <details>
-<summary>如果你之前没有使用过 Node.js (点击展开)</summary>
+<summary>环境要求 (点击展开)</summary>
 
-1. 安装 Node.js 和 npm
+1. **Python 3.11+（必需）**
+   - 访问 [Python 官网](https://www.python.org/downloads/)
+   - 下载并安装 Python 3.11 或更高版本
+   - **重要**：安装时请勾选"Add Python to PATH"选项
+   - **安装完成后请重启电脑**，确保环境变量生效
+
+2. **Node.js 和 npm**
    - 访问 [Node.js 官网](https://nodejs.org/)
    - 下载并安装 LTS（长期支持）版本
    - 安装时选择默认选项即可，安装包会同时安装 Node.js 和 npm
 
-2. 验证安装
-   - 安装完成后，打开命令提示符（CMD）或 PowerShell
-   - 输入以下命令确认安装成功：
-     ```bash
-     node --version
-     npm --version
-     ```
-   - 如果显示版本号，则表示安装成功
-
-3. 安装 Git（如果尚未安装）
+3. **Git**
    - 访问 [Git 官网](https://git-scm.com/)
    - 下载并安装 Git
    - 安装时使用默认选项即可
@@ -81,6 +78,7 @@ git clone https://github.com/shuakami/mcp-github.git
 cd mcp-github
 npm install
 ```
+> ⚠️ **重要提示**：安装后请不要删除克隆或解压的文件，插件需要持续访问这些文件！
 
 ### 2. 构建项目
 
@@ -117,13 +115,9 @@ npm run build
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "powershell",
+      "command": "pythonw",
       "args": [
-        "-WindowStyle",
-        "Hidden",
-        "-Command",
-        "node",
-        "C:/Users/你的用户名/mcp-github/dist/index.js"
+        "你的安装路径/mcp-github/bridging_github_mcp.py"
       ],
       "env": {
         "GITHUB_TOKEN": "你的GitHub令牌"
@@ -134,9 +128,9 @@ npm run build
 ```
 
 > ⚠️ **请注意**:
-> - 将 `你的用户名` 替换为你的 Windows 用户名（例如：`C:/Users/John/mcp-github/...`）
+> - 将 `你的安装路径` 替换为你克隆或解压项目的实际路径（例如：`C:/Users/John/mcp-github/...`）
+> - 使用正斜杠（/）而非反斜杠（\）来表示路径
 > - 将 `你的GitHub令牌` 替换为你在上一步中获取的实际令牌
-> - 确保路径正确指向你的项目目录
 </details>
 
 <details>
@@ -151,10 +145,9 @@ npm run build
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "bash",
+      "command": "python3",
       "args": [
-        "-c",
-        "node /Users/你的用户名/mcp-github/dist/index.js"
+        "/Users/你的用户名/mcp-github/bridging_github_mcp.py"
       ],
       "env": {
         "GITHUB_TOKEN": "你的GitHub令牌"
@@ -182,10 +175,9 @@ npm run build
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "bash",
+      "command": "python3",
       "args": [
-        "-c",
-        "node /home/你的用户名/mcp-github/dist/index.js"
+        "/home/你的用户名/mcp-github/bridging_github_mcp.py"
       ],
       "env": {
         "GITHUB_TOKEN": "你的GitHub令牌"
