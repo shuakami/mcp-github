@@ -25,9 +25,12 @@ def main():
     signal.signal(signal.SIGINT, handle_termination)
     signal.signal(signal.SIGTERM, handle_termination)
 
+    # 获取当前脚本所在目录
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
     try:
         proc = subprocess.Popen(
-            "node C:/Users/Shuakami/mcp-github/dist/index.js",
+            f"node {os.path.join(current_dir, 'dist/index.js')}",
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
