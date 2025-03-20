@@ -178,7 +178,6 @@ class GitHubMCP {
           if (data.allowSquashMerge !== undefined) params.allow_squash_merge = data.allowSquashMerge;
           if (data.allowMergeCommit !== undefined) params.allow_merge_commit = data.allowMergeCommit;
           if (data.allowRebaseMerge !== undefined) params.allow_rebase_merge = data.allowRebaseMerge;
-          if (data.topics !== undefined) params.topics = data.topics;
 
           ['name', 'description', 'homepage', 'private', 'archived'].forEach(key => {
             if (data[key as keyof typeof data] !== undefined) {
@@ -186,9 +185,26 @@ class GitHubMCP {
             }
           });
 
+          // 如果提供了topics，使用单独的API调用来更新topics
+          let topicsResult;
+          if (data.topics !== undefined) {
+            topicsResult = await this.octokit.rest.repos.replaceAllTopics({
+              owner,
+              repo,
+              names: data.topics
+            });
+          }
+
           const result = await this.octokit.rest.repos.update(params);
+          
           // 清洗 & 格式化
-          const cleanedData = this.cleanGitHubResponse(result.data, 'repository');
+          let cleanedData = this.cleanGitHubResponse(result.data, 'repository');
+          
+          // 如果更新了topics，将topics信息添加到返回结果中
+          if (topicsResult && topicsResult.data.names) {
+            cleanedData.topics = topicsResult.data.names;
+          }
+          
           const text = this.formatForHumans(cleanedData, 'repository');
           return { content: [{ type: "text", text }] };
         } catch (error: any) {
