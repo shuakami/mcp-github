@@ -715,6 +715,114 @@ class GitHubMCP {
         }
       }
     );
+
+    // Create pull request comment (regular comment, not code review)
+    this.server.tool(
+      "createPullRequestComment",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        pullNumber: z.number(),
+        body: z.string()
+      },
+      async ({ owner, repo, pullNumber, body }) => {
+        try {
+          // PR 的常规评论使用 issues.createComment API，因为 PR 也是一种特殊的 Issue
+          const result = await this.octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pullNumber,
+            body
+          });
+          
+          // 清洗评论数据
+          const commentData = {
+            id: result.data.id,
+            user: result.data.user?.login || 'unknown',
+            created_at: result.data.created_at,
+            updated_at: result.data.updated_at,
+            body: result.data.body,
+            html_url: result.data.html_url
+          };
+          
+          // 构建人类可读的输出
+          let responseText = `已成功在 PR #${pullNumber} 下添加评论:\n\n`;
+          responseText += `评论者: ${commentData.user}\n`;
+          responseText += `创建于: ${new Date(commentData.created_at).toLocaleString()}\n`;
+          responseText += `评论内容:\n${commentData.body}\n\n`;
+          responseText += `评论链接: ${commentData.html_url}`;
+          
+          return { content: [{ type: "text", text: responseText }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+
+    // Create pull request review comment (code review comment on specific file/line)
+    this.server.tool(
+      "createPullRequestReviewComment",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        pullNumber: z.number(),
+        body: z.string(),
+        commitId: z.string(),
+        path: z.string(),
+        line: z.number(),
+        startLine: z.number().optional(),
+        startSide: z.enum(['LEFT', 'RIGHT']).optional(),
+        side: z.enum(['LEFT', 'RIGHT']).optional(),
+      },
+      async ({ owner, repo, pullNumber, body, commitId, path, line, startLine, startSide, side = 'RIGHT' }) => {
+        try {
+          // 构建请求参数
+          const params: any = {
+            owner,
+            repo,
+            pull_number: pullNumber,
+            body,
+            commit_id: commitId,
+            path,
+            line,
+            side
+          };
+          
+          // 添加可选参数
+          if (startLine) params.start_line = startLine;
+          if (startSide) params.start_side = startSide;
+          
+          // 创建代码审查评论
+          const result = await this.octokit.rest.pulls.createReviewComment(params);
+          
+          // 清洗评论数据
+          const commentData = {
+            id: result.data.id,
+            user: result.data.user?.login || 'unknown',
+            created_at: result.data.created_at,
+            updated_at: result.data.updated_at,
+            body: result.data.body,
+            html_url: result.data.html_url,
+            path: result.data.path,
+            line: result.data.line,
+            commit_id: result.data.commit_id
+          };
+          
+          // 构建人类可读的输出
+          let responseText = `已成功在 PR #${pullNumber} 的代码中添加评论:\n\n`;
+          responseText += `评论者: ${commentData.user}\n`;
+          responseText += `文件: ${commentData.path}\n`;
+          responseText += `行号: ${commentData.line}\n`;
+          responseText += `创建于: ${new Date(commentData.created_at).toLocaleString()}\n`;
+          responseText += `评论内容:\n${commentData.body}\n\n`;
+          responseText += `评论链接: ${commentData.html_url}`;
+          
+          return { content: [{ type: "text", text: responseText }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
   }
 
   /**
@@ -956,6 +1064,48 @@ class GitHubMCP {
           }
           
           return { content: [{ type: "text", text: result }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+
+    // Create issue comment
+    this.server.tool(
+      "createIssueComment",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        issueNumber: z.number(),
+        body: z.string()
+      },
+      async ({ owner, repo, issueNumber, body }) => {
+        try {
+          const result = await this.octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: issueNumber,
+            body
+          });
+          
+          // 清洗评论数据
+          const commentData = {
+            id: result.data.id,
+            user: result.data.user?.login || 'unknown',
+            created_at: result.data.created_at,
+            updated_at: result.data.updated_at,
+            body: result.data.body,
+            html_url: result.data.html_url
+          };
+          
+          // 构建人类可读的输出
+          let responseText = `已成功在 Issue #${issueNumber} 下添加评论:\n\n`;
+          responseText += `评论者: ${commentData.user}\n`;
+          responseText += `创建于: ${new Date(commentData.created_at).toLocaleString()}\n`;
+          responseText += `评论内容:\n${commentData.body}\n\n`;
+          responseText += `评论链接: ${commentData.html_url}`;
+          
+          return { content: [{ type: "text", text: responseText }] };
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
