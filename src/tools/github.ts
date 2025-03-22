@@ -442,39 +442,13 @@ class GitHubMCP {
       },
       async ({ owner, repo, pullNumber }) => {
         try {
-          // 获取PR基本信息
-          const prResult = await this.octokit.rest.pulls.get({
+          const result = await this.octokit.rest.pulls.get({
             owner,
             repo,
             pull_number: pullNumber
           });
-          
-          // 获取PR评论
-          const commentsResult = await this.octokit.rest.issues.listComments({
-            owner,
-            repo,
-            issue_number: pullNumber,
-            per_page: 100
-          });
-          
-          // 清洗PR数据
-          const cleanedPR = this.cleanGitHubResponse(prResult.data, 'pull_request');
-          
-          // 清洗评论数据
-          const cleanedComments = this.cleanGitHubResponse(commentsResult.data, 'comment');
-          
-          // 添加评论到PR数据中
-          cleanedPR.comments = cleanedComments;
-          cleanedPR.comments_count = cleanedComments.length;
-          
-          // 获取分页信息
-          let hasNextPage = false;
-          if (commentsResult.headers.link) {
-            hasNextPage = commentsResult.headers.link.includes('rel="next"');
-          }
-          cleanedPR.has_more_comments = hasNextPage;
-          
-          const text = this.formatForHumans(cleanedPR, 'pull_request');
+          const cleanedData = this.cleanGitHubResponse(result.data, 'pull_request');
+          const text = this.formatForHumans(cleanedData, 'pull_request');
           return { content: [{ type: "text", text }] };
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
@@ -582,8 +556,8 @@ class GitHubMCP {
         }
       }
     );
-    
-    // Get PR comments with pagination
+
+    // Get pull request comments
     this.server.tool(
       "getPullRequestComments",
       {
@@ -594,37 +568,148 @@ class GitHubMCP {
       },
       async ({ owner, repo, pullNumber, page = 1 }) => {
         try {
-          const commentsResult = await this.octokit.rest.issues.listComments({
+          // 获取 PR 本身的信息，以便在结果中包含
+          const prResult = await this.octokit.rest.pulls.get({
+            owner,
+            repo,
+            pull_number: pullNumber
+          });
+          const prData = this.cleanGitHubResponse(prResult.data, 'pull_request');
+          
+          // 定义评论接口类型
+          interface BaseComment {
+            id: any;
+            type: string;
+            user: string;
+            created_at: string;
+            updated_at: string;
+            body: string;
+            html_url: string;
+          }
+          
+          interface IssueComment extends BaseComment {
+            type: 'issue_comment';
+          }
+          
+          interface ReviewComment extends BaseComment {
+            type: 'review_comment';
+            path?: string;
+            line?: number;
+            position?: number;
+            commit_id?: string;
+          }
+          
+          type PrComment = IssueComment | ReviewComment;
+          
+          // 先获取 PR 的常规评论（类似 issue 评论）
+          const issueCommentsResult = await this.octokit.rest.issues.listComments({
             owner,
             repo,
             issue_number: pullNumber,
-            per_page: 100,
+            per_page: 20,
             page
           });
           
-          // 清洗评论数据
-          const cleanedComments = this.cleanGitHubResponse(commentsResult.data, 'comment');
+          // 获取 PR 的代码审查评论
+          const reviewCommentsResult = await this.octokit.rest.pulls.listReviewComments({
+            owner,
+            repo,
+            pull_number: pullNumber,
+            per_page: 20,
+            page
+          });
           
-          // 获取分页信息
-          let hasNextPage = false;
-          let hasPrevPage = false;
-          if (commentsResult.headers.link) {
-            hasNextPage = commentsResult.headers.link.includes('rel="next"');
-            hasPrevPage = commentsResult.headers.link.includes('rel="prev"');
-          }
+          // 清洗常规评论数据
+          const issueComments: IssueComment[] = issueCommentsResult.data.map((comment: any) => {
+            return {
+              id: comment.id,
+              type: 'issue_comment',
+              user: comment.user?.login || 'unknown',
+              created_at: comment.created_at,
+              updated_at: comment.updated_at,
+              body: comment.body,
+              html_url: comment.html_url
+            };
+          });
           
-          const result = {
-            comments: cleanedComments,
-            pagination: {
-              current_page: page,
-              has_next_page: hasNextPage,
-              has_prev_page: hasPrevPage,
-              total_count: cleanedComments.length
-            }
+          // 清洗代码审查评论数据
+          const reviewComments: ReviewComment[] = reviewCommentsResult.data.map((comment: any) => {
+            return {
+              id: comment.id,
+              type: 'review_comment',
+              user: comment.user?.login || 'unknown',
+              created_at: comment.created_at,
+              updated_at: comment.updated_at,
+              body: comment.body,
+              html_url: comment.html_url,
+              path: comment.path,
+              line: comment.line,
+              position: comment.position,
+              commit_id: comment.commit_id
+            };
+          });
+          
+          // 将两种评论合并并按时间排序
+          const allComments: PrComment[] = [...issueComments, ...reviewComments].sort((a, b) => 
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+          
+          // 构建分页信息
+          const hasMoreIssueComments = issueCommentsResult.data.length >= 20;
+          const hasMoreReviewComments = reviewCommentsResult.data.length >= 20;
+          const pagination = {
+            current_page: page,
+            total_comments: allComments.length,
+            has_next_page: hasMoreIssueComments || hasMoreReviewComments,
+            next_page: (hasMoreIssueComments || hasMoreReviewComments) ? page + 1 : null
           };
           
-          const text = this.formatForHumans(result, 'comments');
-          return { content: [{ type: "text", text }] };
+          // 构建人类可读的输出
+          let result = `PR #${prData.number}: ${prData.title}\n`;
+          result += `状态: ${prData.state === 'open' ? '开放' : '关闭'}\n`;
+          result += `创建者: ${prData.user || 'unknown'}\n`;
+          result += `创建于: ${new Date(prData.created_at).toLocaleString()}\n`;
+          if (prData.merged !== undefined) {
+            result += `已合并: ${prData.merged ? '是' : '否'}\n`;
+          }
+          if (prData.merged_at) {
+            result += `合并于: ${new Date(prData.merged_at).toLocaleString()}\n`;
+          }
+          result += `从分支 ${prData.head_branch || '未知'} 到 ${prData.base_branch || '未知'}\n`;
+          result += `链接: ${prData.html_url}\n\n`;
+          
+          if (prData.body) {
+            result += `描述:\n${prData.body}\n\n`;
+          }
+          
+          result += `--- 评论 (第 ${page} 页) ---\n\n`;
+          
+          if (allComments.length === 0) {
+            result += "没有评论。\n";
+          } else {
+            allComments.forEach((comment, index) => {
+              const commentType = comment.type === 'issue_comment' ? '常规评论' : '代码审查评论';
+              result += `[${index + 1}] ${comment.user} 在 ${new Date(comment.created_at).toLocaleString()} 添加了${commentType}:\n`;
+              
+              // 对于代码审查评论，添加文件和位置信息
+              if (comment.type === 'review_comment' && 'path' in comment && comment.path) {
+                result += `文件: ${comment.path}`;
+                if ('line' in comment && comment.line) {
+                  result += `, 行: ${comment.line}`;
+                }
+                result += `\n`;
+              }
+              
+              result += `${comment.body}\n\n`;
+            });
+            
+            // 添加分页提示
+            if (pagination.has_next_page) {
+              result += `\n--- 还有更多评论。使用 page: ${pagination.next_page} 查看下一页 ---\n`;
+            }
+          }
+          
+          return { content: [{ type: "text", text: result }] };
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
@@ -680,39 +765,13 @@ class GitHubMCP {
       },
       async ({ owner, repo, issueNumber }) => {
         try {
-          // 获取Issue基本信息
-          const issueResult = await this.octokit.rest.issues.get({
+          const result = await this.octokit.rest.issues.get({
             owner,
             repo,
             issue_number: issueNumber
           });
-          
-          // 获取Issue评论
-          const commentsResult = await this.octokit.rest.issues.listComments({
-            owner,
-            repo,
-            issue_number: issueNumber,
-            per_page: 100
-          });
-          
-          // 清洗Issue数据
-          const cleanedIssue = this.cleanGitHubResponse(issueResult.data, 'issue');
-          
-          // 清洗评论数据
-          const cleanedComments = this.cleanGitHubResponse(commentsResult.data, 'comment');
-          
-          // 添加评论到Issue数据中
-          cleanedIssue.comments = cleanedComments;
-          cleanedIssue.comments_count = cleanedComments.length;
-          
-          // 获取分页信息
-          let hasNextPage = false;
-          if (commentsResult.headers.link) {
-            hasNextPage = commentsResult.headers.link.includes('rel="next"');
-          }
-          cleanedIssue.has_more_comments = hasNextPage;
-          
-          const text = this.formatForHumans(cleanedIssue, 'issue');
+          const cleanedData = this.cleanGitHubResponse(result.data, 'issue');
+          const text = this.formatForHumans(cleanedData, 'issue');
           return { content: [{ type: "text", text }] };
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
@@ -820,8 +879,8 @@ class GitHubMCP {
         }
       }
     );
-    
-    // Get issue comments with pagination
+
+    // Get issue comments
     this.server.tool(
       "getIssueComments",
       {
@@ -832,37 +891,71 @@ class GitHubMCP {
       },
       async ({ owner, repo, issueNumber, page = 1 }) => {
         try {
+          // 获取 issue 本身的信息，以便在结果中包含
+          const issueResult = await this.octokit.rest.issues.get({
+            owner,
+            repo,
+            issue_number: issueNumber
+          });
+          const issueData = this.cleanGitHubResponse(issueResult.data, 'issue');
+          
+          // 获取评论
           const commentsResult = await this.octokit.rest.issues.listComments({
             owner,
             repo,
             issue_number: issueNumber,
-            per_page: 100,
+            per_page: 30,
             page
           });
           
           // 清洗评论数据
-          const cleanedComments = this.cleanGitHubResponse(commentsResult.data, 'comment');
+          const commentsData = commentsResult.data.map((comment: any) => {
+            return {
+              id: comment.id,
+              user: comment.user?.login || 'unknown',
+              created_at: comment.created_at,
+              updated_at: comment.updated_at,
+              body: comment.body,
+              html_url: comment.html_url
+            };
+          });
           
-          // 获取分页信息
-          let hasNextPage = false;
-          let hasPrevPage = false;
-          if (commentsResult.headers.link) {
-            hasNextPage = commentsResult.headers.link.includes('rel="next"');
-            hasPrevPage = commentsResult.headers.link.includes('rel="prev"');
-          }
-          
-          const result = {
-            comments: cleanedComments,
-            pagination: {
-              current_page: page,
-              has_next_page: hasNextPage,
-              has_prev_page: hasPrevPage,
-              total_count: cleanedComments.length
-            }
+          // 构建分页信息
+          const pagination = {
+            current_page: page,
+            total_comments: commentsResult.data.length >= 30 ? '30+' : commentsResult.data.length,
+            has_next_page: commentsResult.data.length >= 30,
+            next_page: commentsResult.data.length >= 30 ? page + 1 : null
           };
           
-          const text = this.formatForHumans(result, 'comments');
-          return { content: [{ type: "text", text }] };
+          // 构建人类可读的输出
+          let result = `Issue #${issueData.number}: ${issueData.title}\n`;
+          result += `状态: ${issueData.state === 'open' ? '开放' : '关闭'}\n`;
+          result += `创建者: ${issueData.user || 'unknown'}\n`;
+          result += `创建于: ${new Date(issueData.created_at).toLocaleString()}\n`;
+          result += `链接: ${issueData.html_url}\n\n`;
+          
+          if (issueData.body) {
+            result += `描述:\n${issueData.body}\n\n`;
+          }
+          
+          result += `--- 评论 (第 ${page} 页) ---\n\n`;
+          
+          if (commentsData.length === 0) {
+            result += "没有评论。\n";
+          } else {
+            commentsData.forEach((comment, index) => {
+              result += `[${index + 1}] ${comment.user} 在 ${new Date(comment.created_at).toLocaleString()} 评论:\n`;
+              result += `${comment.body}\n\n`;
+            });
+            
+            // 添加分页提示
+            if (pagination.has_next_page) {
+              result += `\n--- 还有更多评论。使用 page: ${pagination.next_page} 查看下一页 ---\n`;
+            }
+          }
+          
+          return { content: [{ type: "text", text: result }] };
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
@@ -1554,103 +1647,6 @@ class GitHubMCP {
             }
             return cleaned;
           }
-
-        case 'user':
-          if (Array.isArray(data)) {
-            if (data.length === 0) return "未找到任何用户。";
-            let result = `找到 ${data.length} 个用户:\n\n`;
-            data.forEach((user, index) => {
-              result += `${index + 1}. ${user.login || user.name}\n`;
-              if (user.html_url) result += `   主页: ${user.html_url}\n`;
-              if (user.description) result += `   描述: ${user.description}\n`;
-              result += `\n`;
-            });
-            return result;
-          } else {
-            let result = `用户: ${data.login || data.name}\n`;
-            if (data.html_url) result += `主页: ${data.html_url}\n`;
-            if (data.description) result += `描述: ${data.description}\n`;
-            return result;
-          }
-
-        case 'comment':
-          if (Array.isArray(data)) {
-            return data.map(comment => {
-              const cleaned: any = {
-                id: comment.id,
-                created_at: comment.created_at,
-                updated_at: comment.updated_at,
-                html_url: comment.html_url
-              };
-              
-              // 保留评论主体，但限制长度
-              if (comment.body) {
-                cleaned.body = comment.body.length > 1000 
-                  ? comment.body.substring(0, 1000) + '...' 
-                  : comment.body;
-              }
-              
-              // 提取用户信息
-              if (comment.user && comment.user.login) {
-                cleaned.user = comment.user.login;
-              }
-              
-              return cleaned;
-            });
-          } else {
-            const cleaned: any = {
-              id: data.id,
-              created_at: data.created_at,
-              updated_at: data.updated_at,
-              html_url: data.html_url
-            };
-            
-            // 保留评论主体，但限制长度
-            if (data.body) {
-              cleaned.body = data.body.length > 1000 
-                ? data.body.substring(0, 1000) + '...' 
-                : data.body;
-            }
-            
-            // 提取用户信息
-            if (data.user && data.user.login) {
-              cleaned.user = data.user.login;
-            }
-            
-            return cleaned;
-          }
-
-        case 'comments':
-          // 评论列表和分页信息
-          if (!data.comments || !Array.isArray(data.comments)) {
-            return "无法获取评论数据。";
-          }
-          
-          let commentsResult = '';
-          
-          // 添加分页信息
-          if (data.pagination) {
-            commentsResult += `页码: ${data.pagination.current_page}\n`;
-            commentsResult += data.pagination.has_prev_page ? "有上一页\n" : "没有上一页\n";
-            commentsResult += data.pagination.has_next_page ? "有下一页\n" : "没有下一页\n";
-            commentsResult += `本页评论数: ${data.pagination.total_count}\n\n`;
-          }
-          
-          // 格式化评论
-          if (data.comments.length === 0) {
-            commentsResult += "本页没有评论。";
-          } else {
-            commentsResult += `评论列表:\n\n`;
-            data.comments.forEach((comment: any, index: number) => {
-              commentsResult += `${index + 1}. ${comment.user || '匿名用户'} 评论道:\n`;
-              if (comment.created_at) commentsResult += `   评论于: ${new Date(comment.created_at).toLocaleString()}\n`;
-              if (comment.body) commentsResult += `   内容: ${comment.body}\n`;
-              if (comment.html_url) commentsResult += `   链接: ${comment.html_url}\n`;
-              commentsResult += `\n`;
-            });
-          }
-          
-          return commentsResult;
 
         default:
           // 通用清洗
