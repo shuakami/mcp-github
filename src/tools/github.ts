@@ -64,23 +64,94 @@ class GitHubMCP {
         type: z.enum(['all', 'owner', 'public', 'private', 'member']).optional(),
         sort: z.enum(['created', 'updated', 'pushed', 'full_name']).optional(),
         direction: z.enum(['asc', 'desc']).optional(),
-        perPage: z.number().optional()
+        perPage: z.number().optional(),
+        page: z.number().optional(),
+        search: z.string().optional()
       },
-      async ({ type = 'all', sort = 'updated', direction, perPage = 100 }) => {
+      async ({ type = 'all', sort = 'updated', direction = 'desc', perPage = 30, page = 1, search }) => {
         try {
           const params = {
             type,
             sort,
             direction,
-            per_page: perPage
+            per_page: perPage,
+            page
           };
 
+          // 执行API请求获取仓库列表
           const result = await this.octokit.rest.repos.listForAuthenticatedUser(params);
-          // 清洗
-          const cleanedData = this.cleanGitHubResponse(result.data, 'repository');
-          // 格式化为人类可读
-          const text = this.formatForHumans(cleanedData, 'repository');
-          return { content: [{ type: "text", text }] };
+          
+          // 获取仓库总数（若API支持）
+          let totalCount = result.data.length;
+          if (result.headers && result.headers['link']) {
+            const linkHeader = result.headers['link'];
+            // 提取总页数
+            const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
+            if (lastPageMatch) {
+              const lastPage = parseInt(lastPageMatch[1]);
+              // 估算总数
+              totalCount = (lastPage - 1) * perPage + result.data.length;
+            }
+          }
+          
+          // 处理搜索功能
+          let filteredData = result.data;
+          if (search && search.trim()) {
+            const searchLower = search.toLowerCase().trim();
+            filteredData = filteredData.filter(repo => {
+              return (
+                (repo.name && repo.name.toLowerCase().includes(searchLower)) ||
+                (repo.full_name && repo.full_name.toLowerCase().includes(searchLower)) ||
+                (repo.description && repo.description.toLowerCase().includes(searchLower)) ||
+                (repo.language && repo.language.toLowerCase().includes(searchLower)) ||
+                (repo.topics && repo.topics.some(topic => topic.toLowerCase().includes(searchLower)))
+              );
+            });
+          }
+          
+          // 清洗数据
+          const cleanedData = this.cleanGitHubResponse(filteredData, 'repository');
+          
+          // 构建分页信息
+          const paginationInfo = {
+            current_page: page,
+            items_per_page: perPage,
+            total_items: search ? filteredData.length : totalCount,
+            has_next_page: result.data.length === perPage,
+            has_prev_page: page > 1
+          };
+          
+          // 构建输出
+          let formattedText = '';
+          
+          if (search) {
+            formattedText = `搜索 "${search}" 结果: 找到 ${filteredData.length} 个仓库\n\n`;
+          } else {
+            formattedText = `仓库列表 (第 ${page} 页, 共 ${perPage} 个/页)\n\n`;
+          }
+          
+          // 使用现有的格式化方法
+          formattedText += this.formatForHumans(cleanedData, 'repository');
+          
+          // 添加分页导航提示
+          formattedText += `\n--- 分页导航 ---\n`;
+          formattedText += `当前页: ${page}\n`;
+          
+          if (paginationInfo.has_prev_page) {
+            formattedText += `上一页: 使用 page: ${page - 1} 查看前一页\n`;
+          }
+          
+          if (paginationInfo.has_next_page) {
+            formattedText += `下一页: 使用 page: ${page + 1} 查看下一页\n`;
+          }
+          
+          if (search) {
+            formattedText += `提示: 要查看所有仓库，请移除 search 参数\n`;
+          } else {
+            formattedText += `提示: 使用 search 参数可以按名称、描述或语言搜索仓库\n`;
+          }
+          
+          return { content: [{ type: "text", text: formattedText }] };
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
