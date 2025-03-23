@@ -145,7 +145,7 @@ npm run build
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "pythonw",
+      "command": "python3",
       "args": [
         "/Users/你的用户名/mcp-github/bridging_github_mcp.py"
       ],
@@ -175,7 +175,7 @@ npm run build
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "pythonw",
+      "command": "python3",
       "args": [
         "/home/你的用户名/mcp-github/bridging_github_mcp.py"
       ],

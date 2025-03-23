@@ -143,7 +143,7 @@ Based on your operating system, follow these steps to configure MCP:
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "pythonw",
+      "command": "python3",
       "args": [
         "/Users/your_username/mcp-github/bridging_github_mcp.py"
       ],
@@ -173,7 +173,7 @@ Based on your operating system, follow these steps to configure MCP:
 {
   "mcpServers": {
     "github-mcp": {
-      "command": "pythonw",
+      "command": "python3",
       "args": [
         "/home/your_username/mcp-github/bridging_github_mcp.py"
       ],
