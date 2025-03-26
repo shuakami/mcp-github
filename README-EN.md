@@ -75,6 +75,7 @@ With simple natural language instructions, AI can help you complete all of the a
 git clone https://github.com/shuakami/mcp-github.git
 cd mcp-github
 npm install
+npm run build
 ```
 > ⚠️ **Important Note**: Do not delete the cloned or extracted files after installation, as the plugin needs continuous access to these files!
 
