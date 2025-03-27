@@ -431,8 +431,8 @@ class GitHubMCP {
             protected: isProtected,
             per_page: perPage
           });
-          const cleanedData = this.cleanGitHubResponse(result.data, '');
-          const text = this.formatForHumans(cleanedData, 'repository');
+          const cleanedData = this.cleanGitHubResponse(result.data, 'branch');
+          const text = this.formatForHumans(cleanedData, 'branch');
           return { content: [{ type: "text", text }] };
         } catch (error: any) {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
@@ -1763,7 +1763,10 @@ class GitHubMCP {
           'title',
           'state',
           'body',
-          'sha'
+          'sha',
+          'protected',
+          'protection',
+          'commit'
         ];
 
         for (const key of keysToKeep) {
@@ -1794,6 +1797,35 @@ class GitHubMCP {
 
       // 针对不同类型进一步做特化清洗
       switch (type) {
+        case 'branch':
+          if (Array.isArray(data)) {
+            return data.map(branch => {
+              const cleaned = removeExcessiveFields(branch);
+              cleaned.name = branch.name;
+              cleaned.protected = branch.protected;
+              if (branch.commit && branch.commit.sha) {
+                cleaned.commit_sha = branch.commit.sha;
+              }
+              if (branch.protection) {
+                cleaned.protection_enabled = true;
+                cleaned.protection_details = branch.protection;
+              }
+              return cleaned;
+            });
+          } else {
+            const cleaned = removeExcessiveFields(data);
+            cleaned.name = data.name;
+            cleaned.protected = data.protected;
+            if (data.commit && data.commit.sha) {
+              cleaned.commit_sha = data.commit.sha;
+            }
+            if (data.protection) {
+              cleaned.protection_enabled = true;
+              cleaned.protection_details = data.protection;
+            }
+            return cleaned;
+          }
+
         case 'repository':
           if (Array.isArray(data)) {
             return data.map(repo => {
@@ -1892,6 +1924,34 @@ class GitHubMCP {
   private formatForHumans(data: any, type: string): string {
     try {
       switch (type) {
+        case 'branch':
+          if (Array.isArray(data)) {
+            if (data.length === 0) return "未找到任何分支。";
+            let result = `找到 ${data.length} 个分支:\n\n`;
+            data.forEach((branch, index) => {
+              result += `${index + 1}. ${branch.name}\n`;
+              result += `   保护状态: ${branch.protected ? '已保护' : '未保护'}\n`;
+              if (branch.commit_sha) {
+                result += `   最新提交: ${branch.commit_sha.substring(0, 7)}\n`;
+              }
+              if (branch.protection_enabled) {
+                result += `   保护规则: 已启用\n`;
+              }
+              result += '\n';
+            });
+            return result;
+          } else {
+            let result = `分支: ${data.name}\n`;
+            result += `保护状态: ${data.protected ? '已保护' : '未保护'}\n`;
+            if (data.commit_sha) {
+              result += `最新提交: ${data.commit_sha.substring(0, 7)}\n`;
+            }
+            if (data.protection_enabled) {
+              result += `保护规则: 已启用\n`;
+            }
+            return result;
+          }
+
         case 'repository':
           if (Array.isArray(data)) {
             if (data.length === 0) return "未找到任何仓库。";
