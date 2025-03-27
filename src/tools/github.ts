@@ -1798,6 +1798,9 @@ class GitHubMCP {
           if (Array.isArray(data)) {
             return data.map(repo => {
               const cleaned = removeExcessiveFields(repo);
+              // 确保关键字段被保留
+              cleaned.html_url = repo.html_url || cleaned.html_url;
+              cleaned.updated_at = repo.updated_at || cleaned.updated_at;
               if (repo.topics) cleaned.topics = repo.topics;
               if (repo.open_issues_count !== undefined)
                 cleaned.open_issues_count = repo.open_issues_count;
@@ -1808,6 +1811,9 @@ class GitHubMCP {
             });
           } else {
             const cleaned = removeExcessiveFields(data);
+            // 确保关键字段被保留
+            cleaned.html_url = data.html_url || cleaned.html_url;
+            cleaned.updated_at = data.updated_at || cleaned.updated_at;
             if (data.topics) cleaned.topics = data.topics;
             if (data.open_issues_count !== undefined)
               cleaned.open_issues_count = data.open_issues_count;
@@ -1893,22 +1899,26 @@ class GitHubMCP {
             data.forEach((repo, index) => {
               result += `${index + 1}. ${repo.full_name || repo.name}\n`;
               if (repo.description) result += `   描述: ${repo.description}\n`;
-              result += `   链接: ${repo.html_url}\n`;
+              result += `   链接: ${repo.html_url || '未提供'}\n`;
               if (repo.language) result += `   主要语言: ${repo.language}\n`;
               if (repo.stars) result += `   星标数: ${repo.stars}\n`;
               if (repo.belongsTo) result += `   仓库所有者: ${repo.belongsTo}\n`;
               if (repo.topics && repo.topics.length > 0) result += `   主题标签: ${repo.topics.join(', ')}\n`;
-              result += `   更新于: ${new Date(repo.updated_at).toLocaleString()}\n\n`;
+              // 添加日期格式化的错误处理
+              const updateDate = repo.updated_at ? new Date(repo.updated_at) : null;
+              result += `   更新于: ${updateDate && !isNaN(updateDate.getTime()) ? updateDate.toLocaleString() : '未知时间'}\n\n`;
             });
             return result;
           } else {
             let result = `仓库: ${data.full_name || data.name}\n`;
             if (data.description) result += `描述: ${data.description}\n`;
-            result += `链接: ${data.html_url}\n`;
+            result += `链接: ${data.html_url || '未提供'}\n`;
             if (data.language) result += `主要语言: ${data.language}\n`;
             if (data.stars) result += `星标数: ${data.stars}\n`;
             if (data.topics && data.topics.length > 0) result += `主题标签: ${data.topics.join(', ')}\n`;
-            result += `更新于: ${new Date(data.updated_at).toLocaleString()}\n`;
+            // 添加日期格式化的错误处理
+            const updateDate = data.updated_at ? new Date(data.updated_at) : null;
+            result += `更新于: ${updateDate && !isNaN(updateDate.getTime()) ? updateDate.toLocaleString() : '未知时间'}\n`;
             return result;
           }
 
