@@ -140,6 +140,8 @@ class GitHubMCP {
     this.registerUserTools();
     // 代码管理（文件/提交）
     this.registerCodeManagementTools();
+    // Releases 管理
+    this.registerReleasesTools();
   }
 
   /**
@@ -1828,6 +1830,177 @@ class GitHubMCP {
     );
   }
 
+  /**
+   * ============================
+   *  Releases 相关工具
+   * ============================
+   */
+  private registerReleasesTools(): void {
+    // 列出仓库所有 Tag
+    this.server.tool(
+      "listTags",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        perPage: z.number().optional()
+      },
+      async ({ owner, repo, perPage = 30 }) => {
+        try {
+          const result = await this.octokit.rest.repos.listTags({
+            owner,
+            repo,
+            per_page: perPage
+          });
+          const cleanedData = this.cleanGitHubResponse(result.data, 'tag');
+          const text = this.formatForHumans(cleanedData, 'tag');
+          return { content: [{ type: "text", text }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+
+    // 创建 release
+    this.server.tool(
+      "createRelease",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        tagName: z.string(),
+        targetCommitish: z.string().optional(),
+        name: z.string().optional(),
+        body: z.string().optional(),
+        draft: z.boolean().optional(),
+        prerelease: z.boolean().optional()
+      },
+      async ({ owner, repo, tagName, targetCommitish, name, body, draft, prerelease }) => {
+        try {
+          const result = await this.octokit.rest.repos.createRelease({
+            owner,
+            repo,
+            tag_name: tagName,
+            target_commitish: targetCommitish,
+            name,
+            body,
+            draft,
+            prerelease
+          });
+          const cleanedData = this.cleanGitHubResponse(result.data, 'release');
+          const text = this.formatForHumans(cleanedData, 'release');
+          return { content: [{ type: "text", text }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+
+    // 列出所有 release
+    this.server.tool(
+      "listReleases",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        perPage: z.number().optional()
+      },
+      async ({ owner, repo, perPage = 30 }) => {
+        try {
+          const result = await this.octokit.rest.repos.listReleases({
+            owner,
+            repo,
+            per_page: perPage
+          });
+          const cleanedData = this.cleanGitHubResponse(result.data, 'release');
+          const text = this.formatForHumans(cleanedData, 'release');
+          return { content: [{ type: "text", text }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+
+    // 获取 release
+    this.server.tool(
+      "getRelease",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        releaseId: z.number()
+      },
+      async ({ owner, repo, releaseId }) => {
+        try {
+          const result = await this.octokit.rest.repos.getRelease({
+            owner,
+            repo,
+            release_id: releaseId
+          });
+          const cleanedData = this.cleanGitHubResponse(result.data, 'release');
+          const text = this.formatForHumans(cleanedData, 'release');
+          return { content: [{ type: "text", text }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+
+    // 更新 release
+    this.server.tool(
+      "updateRelease",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        releaseId: z.number(),
+        tagName: z.string().optional(),
+        targetCommitish: z.string().optional(),
+        name: z.string().optional(),
+        body: z.string().optional(),
+        draft: z.boolean().optional(),
+        prerelease: z.boolean().optional()
+      },
+      async ({ owner, repo, releaseId, tagName, targetCommitish, name, body, draft, prerelease }) => {
+        try {
+          const result = await this.octokit.rest.repos.updateRelease({
+            owner,
+            repo,
+            release_id: releaseId,
+            tag_name: tagName,
+            target_commitish: targetCommitish,
+            name,
+            body,
+            draft,
+            prerelease
+          });
+          const cleanedData = this.cleanGitHubResponse(result.data, 'release');
+          const text = this.formatForHumans(cleanedData, 'release');
+          return { content: [{ type: "text", text }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+
+    // 删除 release
+    this.server.tool(
+      "deleteRelease",
+      {
+        owner: z.string(),
+        repo: z.string(),
+        releaseId: z.number()
+      },
+      async ({ owner, repo, releaseId }) => {
+        try {
+          await this.octokit.rest.repos.deleteRelease({
+            owner,
+            repo,
+            release_id: releaseId
+          });
+          return { content: [{ type: "text", text: `Release #${releaseId} 已删除。` }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+      }
+    );
+  }
+
   // ----------------------
   // 统一的清洗函数
   // ----------------------
@@ -1857,7 +2030,14 @@ class GitHubMCP {
           'sha',
           'protected',
           'protection',
-          'commit'
+          'commit',
+          'tag_name',
+          'target_commitish',
+          'prerelease',
+          'draft',
+          'assets_url',
+          'upload_url',
+          'published_at'
         ];
 
         for (const key of keysToKeep) {
@@ -1998,6 +2178,57 @@ class GitHubMCP {
             return cleaned;
           }
 
+        case 'tag':
+          if (Array.isArray(data)) {
+            if (data.length === 0) return "未找到任何标签。";
+            let result = `找到 ${data.length} 个标签:\n\n`;
+            data.forEach((tag, index) => {
+              result += `${index + 1}. ${tag.name}\n`;
+              if (tag.commit && tag.commit.sha) {
+                result += `   提交: ${tag.commit.sha.substring(0, 7)}\n`;
+              }
+              result += '\n';
+            });
+            return result;
+          } else {
+            let result = `标签: ${data.name}\n`;
+            if (data.commit && data.commit.sha) {
+              result += `提交: ${data.commit.sha.substring(0, 7)}\n`;
+            }
+            return result;
+          }
+
+        case 'release':
+          if (Array.isArray(data)) {
+            return data.map(release => {
+              const cleaned = removeExcessiveFields(release);
+              // 确保关键字段被保留
+              cleaned.name = release.name;
+              cleaned.tag_name = release.tag_name;
+              cleaned.html_url = release.html_url;
+              cleaned.body = release.body;
+              cleaned.draft = release.draft;
+              cleaned.prerelease = release.prerelease;
+              cleaned.published_at = release.published_at;
+              cleaned.assets_url = release.assets_url;
+              cleaned.upload_url = release.upload_url;
+              return cleaned;
+            });
+          } else {
+            const cleaned = removeExcessiveFields(data);
+            // 确保关键字段被保留
+            cleaned.name = data.name;
+            cleaned.tag_name = data.tag_name;
+            cleaned.html_url = data.html_url;
+            cleaned.body = data.body;
+            cleaned.draft = data.draft;
+            cleaned.prerelease = data.prerelease;
+            cleaned.published_at = data.published_at;
+            cleaned.assets_url = data.assets_url;
+            cleaned.upload_url = data.upload_url;
+            return cleaned;
+          }
+
         default:
           // 通用清洗
           if (Array.isArray(data)) {
@@ -2007,6 +2238,7 @@ class GitHubMCP {
           }
       }
     } catch (error) {
+      console.error('Data cleaning error:', error);
       return data; // 出错则返回原始数据
     }
   }
@@ -2137,6 +2369,61 @@ class GitHubMCP {
             return result;
           }
 
+        case 'tag':
+          if (Array.isArray(data)) {
+            if (data.length === 0) return "未找到任何标签。";
+            let result = `找到 ${data.length} 个标签:\n\n`;
+            data.forEach((tag, index) => {
+              result += `${index + 1}. ${tag.name}\n`;
+              if (tag.commit && tag.commit.sha) {
+                result += `   提交: ${tag.commit.sha.substring(0, 7)}\n`;
+              }
+              result += '\n';
+            });
+            return result;
+          } else {
+            let result = `标签: ${data.name}\n`;
+            if (data.commit && data.commit.sha) {
+              result += `提交: ${data.commit.sha.substring(0, 7)}\n`;
+            }
+            return result;
+          }
+
+        case 'release':
+          if (Array.isArray(data)) {
+            if (data.length === 0) return "未找到任何发布版本。";
+            let result = `找到 ${data.length} 个发布版本:\n\n`;
+            data.forEach((release, index) => {
+              result += `${index + 1}. ${release.name || release.tag_name}\n`;
+              if (release.draft) result += `   [草稿]\n`;
+              if (release.prerelease) result += `   [预发布]\n`;
+              if (release.published_at) {
+                const publishDate = new Date(release.published_at);
+                result += `   发布于: ${publishDate.toLocaleString()}\n`;
+              }
+              if (release.body) {
+                const shortBody = release.body.length > 100 
+                  ? release.body.substring(0, 100) + '...' 
+                  : release.body;
+                result += `   描述: ${shortBody}\n`;
+              }
+              result += `   链接: ${release.html_url || '未提供'}\n\n`;
+            });
+            return result;
+          } else {
+            let result = `发布版本: ${data.name || data.tag_name || '未命名'}\n`;
+            if (data.draft) result += `状态: 草稿\n`;
+            if (data.prerelease) result += `类型: 预发布\n`;
+            if (data.published_at) {
+              const publishDate = new Date(data.published_at);
+              result += `发布于: ${publishDate.toLocaleString()}\n`;
+            }
+            if (data.body) result += `描述:\n${data.body}\n`;
+            result += `链接: ${data.html_url || '未提供'}\n`;
+            if (data.assets_url) result += `资源链接: ${data.assets_url}\n`;
+            return result;
+          }
+
         default:
           // 其他类型也使用人类可读格式
           if (Array.isArray(data)) {
@@ -2152,6 +2439,7 @@ class GitHubMCP {
           }
       }
     } catch (error) {
+      console.error('Formatting error:', error);
       // 发生错误时，尝试基础的格式化
       return `数据:\n${JSON.stringify(data, null, 2)}`;
     }
