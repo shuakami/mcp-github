@@ -7,11 +7,102 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
+// 锁文件路径配置
+const LOCK_FILE = path.join(process.cwd(), '.mcp-qq.lock');
+
+class ProcessManager {
+  private instanceId: string;
+
+  constructor() {
+    // 生成唯一实例ID，使用时间戳和随机数组合
+    this.instanceId = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    
+    // 注册进程退出处理
+    this.registerCleanup();
+  }
+
+  private registerCleanup(): void {
+    const cleanup = () => {
+      try {
+        if (fs.existsSync(LOCK_FILE)) {
+          const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8'));
+          // 只清理自己的锁文件
+          if (lockData.instanceId === this.instanceId) {
+            fs.unlinkSync(LOCK_FILE);
+            console.log('已清理锁文件');
+          }
+        }
+      } catch (error) {
+        console.error('清理锁文件时出错:', error);
+      }
+      process.exit(0);
+    };
+
+    // 注册多个信号以确保清理
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+    process.on('exit', cleanup);
+  }
+
+  public checkAndCreateLock(): boolean {
+    try {
+      // 检查锁文件是否存在
+      if (fs.existsSync(LOCK_FILE)) {
+        const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8'));
+        
+        try {
+          // 检查进程是否还在运行
+          process.kill(lockData.pid, 0);
+          console.log('发现正在运行的实例，发送终止信号');
+          // 如果进程还在运行，发送终止信号
+          process.kill(lockData.pid, 'SIGTERM');
+          // 等待一段时间确保旧进程退出
+          setTimeout(() => {
+            this.createLockFile();
+          }, 1000);
+          return true;
+        } catch (e) {
+          // 进程不存在，可以继续
+          console.log('发现过期的锁文件，将创建新的锁文件');
+          this.createLockFile();
+          return true;
+        }
+      }
+
+      // 创建新的锁文件
+      console.log('创建新的锁文件');
+      this.createLockFile();
+      return true;
+    } catch (error) {
+      console.error('处理锁文件时出错:', error);
+      return false;
+    }
+  }
+
+  private createLockFile(): void {
+    fs.writeFileSync(LOCK_FILE, JSON.stringify({
+      pid: process.pid,
+      instanceId: this.instanceId,
+      timestamp: Date.now()
+    }));
+  }
+}
+
 class GitHubMCP {
   private octokit: Octokit;
   private server: McpServer;
+  private processManager: ProcessManager;
 
   constructor() {
+    // 初始化进程管理器
+    this.processManager = new ProcessManager();
+    
+    // 检查进程锁
+    if (!this.processManager.checkAndCreateLock()) {
+      console.error('无法创建进程锁，程序退出');
+      process.exit(1);
+    }
+
     // 从环境变量中读取token，如果不存在则使用后备token
     const token = process.env.GITHUB_TOKEN || '';
     
@@ -2082,17 +2173,25 @@ class GitHubMCP {
   }
 
   public async run(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    
-    // 初始化完成
-    console.log("GitHub MCP server started");
+    try {
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+      
+      // 初始化完成
+      console.log("GitHub MCP server started");
+    } catch (error) {
+      console.error('启动服务器时出错:', error);
+      process.exit(1);
+    }
   }
 }
 
 // 创建并运行 MCP 实例
 const githubMCP = new GitHubMCP();
-githubMCP.run().catch(console.error);
+githubMCP.run().catch(error => {
+  console.error('运行时出错:', error);
+  process.exit(1);
+});
     
     
     
